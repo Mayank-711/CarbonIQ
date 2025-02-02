@@ -3,6 +3,7 @@ import LandingPage from './LandingPage';  // Corrected typo
 import Login from './Login';
 import Register from './Register';
 import Home from './Home.Jsx';
+import ProtectedRoute from './Components/ProtectedRoute';
 
 function App() {
   return (
@@ -12,7 +13,11 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+
+        {/* Protected routes */}
+        <Route element={<ProtectedRoute />}>
         <Route path = "/home" element= {<Home />} />
+        </Route>
       </Routes>
     </Router>
   );
