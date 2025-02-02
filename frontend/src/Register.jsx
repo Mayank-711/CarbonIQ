@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import backgroundImage from './assets/carousel3.jpg'; // Adjust the path as needed
+import API_BASE_URL from './config';
 
 const Register = () => {
     const [showPassword, setShowPassword] = useState(false);
@@ -11,6 +12,7 @@ const Register = () => {
         password: '',
         confirmPassword: '',
     });
+    const [errorMessage, setErrorMessage] = useState(''); // Add errorMessage state
     const [successMessage, setSuccessMessage] = useState('');
     const navigate = useNavigate();
 
@@ -23,14 +25,15 @@ const Register = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
+    
+        // Password mismatch check
         if (formData.password !== formData.confirmPassword) {
-            alert("Passwords do not match!");
+            setErrorMessage("Passwords do not match!"); // Show error message
             return;
         }
-
+    
         try {
-            const response = await fetch('http://127.0.0.1:8000/register/', {
+            const response = await fetch(`${API_BASE_URL}/register/`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -41,26 +44,29 @@ const Register = () => {
                     password: formData.password,
                 }),
             });
-
+    
             if (response.ok) {
                 setSuccessMessage("Registration successful! Redirecting to login...");
+                setErrorMessage(''); // Clear any error messages
                 setFormData({
                     username: '',
                     email: '',
                     password: '',
                     confirmPassword: '',
                 });
-
+    
                 setTimeout(() => {
-                    navigate("/login");
+                    navigate("/login"); // Redirect to login page after 2 seconds
                 }, 2000);
             } else {
                 const errorData = await response.json();
-                alert(errorData.detail || "Failed to register");
+                setErrorMessage(errorData.detail || "Failed to register");
+                setSuccessMessage(''); // Clear success message if error occurs
             }
         } catch (error) {
             console.error("Error during registration:", error);
-            alert("An error occurred. Please try again.");
+            setErrorMessage("An error occurred. Please try again.");
+            setSuccessMessage(''); // Clear success message on error
         }
     };
 
@@ -93,6 +99,10 @@ const Register = () => {
                     <h3 className="text-xl mt-2 text-[#3CB371]">Register</h3>
                     {successMessage && (
                         <p className="mt-2 text-green-500 text-sm animate-fade-in">{successMessage}</p>
+                    )}
+                    {/* Display error message */}
+                    {errorMessage && (
+                        <p className="mt-2 text-red-500 text-sm animate-fade-in">{errorMessage}</p>
                     )}
                 </div>
 

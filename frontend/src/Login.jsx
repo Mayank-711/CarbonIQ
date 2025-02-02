@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import backgroundImage from './assets/carousel3.jpg'; // Adjust the path as needed
-import { Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import backgroundImage from './assets/carousel3.jpg';
+import API_BASE_URL from './config'; // Import your base URL from the configuration file
 
 const Login = () => {
     const [showPassword, setShowPassword] = useState(false);
@@ -8,6 +9,8 @@ const Login = () => {
         username: '',
         password: '',
     });
+    const [error, setError] = useState(null);
+    const navigate = useNavigate(); // For navigation after login
 
     const handleChange = (e) => {
         setFormData({
@@ -16,10 +19,34 @@ const Login = () => {
         });
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Handle login logic here
-        console.log("Logging in with:", formData);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/login/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Login successful:', data);
+                setError(null);
+                // Store the token in localStorage (or sessionStorage or Redux state)
+                localStorage.setItem('token', data.token);
+
+                // Redirect to the home page or dashboard
+                navigate('/home');
+            } else {
+                const errorData = await response.json();
+                setError(errorData.detail || 'Invalid username or password');
+            }
+        } catch (error) {
+            setError('An error occurred. Please try again.');
+        }
     };
 
     const togglePassword = () => {
@@ -41,14 +68,19 @@ const Login = () => {
                 bottom: 0,
             }}
         >
-            <div className="bg-[#F0FFF0] text-white p-8 rounded-lg shadow-lg max-w-md w-ful">
+            <div className="bg-[#F0FFF0] text-white p-8 rounded-lg shadow-lg max-w-md ">
                 <div className="text-center mb-6">
                     <h2 className="text-3xl font-bold text-[#2E8B57]">CarbonIQ</h2>
                     <h3 className="text-2xl mt-2 text-[#3CB371]">Login</h3>
                 </div>
 
+                {error && (
+                    <div className="text-red-600 text-center mb-4">
+                        {error}
+                    </div>
+                )}
+
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Username Field */}
                     <div className="flex flex-col">
                         <label htmlFor="username" className="text-[#3CB371] font-semibold text-lg mb-2">Username</label>
                         <input
@@ -63,7 +95,6 @@ const Login = () => {
                         />
                     </div>
 
-                    {/* Password Field */}
                     <div className="flex flex-col">
                         <label htmlFor="password" className="text-[#3CB371] font-semibold text-lg mb-2">Password</label>
                         <div className="relative">
@@ -87,7 +118,6 @@ const Login = () => {
                         </div>
                     </div>
 
-                    {/* Submit Button */}
                     <button
                         type="submit"
                         className="w-full p-3 bg-[#3CB371] text-white rounded-lg font-semibold hover:bg-[#2E8B57] transition"
@@ -96,13 +126,12 @@ const Login = () => {
                     </button>
                 </form>
 
-                {/* Additional Links */}
                 <div className="text-center mt-4 text-[#2E8B57]">
                     <Link to="/forgot-password" className="hover:underline">Forgot Password?</Link>
                 </div>
                 <div className="text-center mt-2 text-[#2E8B57]">
                     <p className="text-center mt-2 text-[rgb(0,100,0)]">Don't have an account?
-                        <Link to="/register" className="text-center mt-2 text-[#2E8B57] hover:underline">Register here</Link>
+                        <Link to="/register" className="text-center mt-2 text-[#2E8B57] hover:underline"> Register here</Link>
                     </p>
                 </div>
                 <div className="text-center mt-2 text-[#2E8B57]">
