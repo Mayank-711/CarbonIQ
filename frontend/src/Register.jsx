@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import backgroundImage from './assets/carousel3.jpg'; // Adjust the path as needed
 
 const Register = () => {
@@ -11,6 +11,8 @@ const Register = () => {
         password: '',
         confirmPassword: '',
     });
+    const [successMessage, setSuccessMessage] = useState('');
+    const navigate = useNavigate();
 
     const handleChange = (e) => {
         setFormData({
@@ -19,10 +21,47 @@ const Register = () => {
         });
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // Handle registration logic here
-        console.log("Registering with:", formData);
+
+        if (formData.password !== formData.confirmPassword) {
+            alert("Passwords do not match!");
+            return;
+        }
+
+        try {
+            const response = await fetch('http://127.0.0.1:8000/register/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: formData.username,
+                    email: formData.email,
+                    password: formData.password,
+                }),
+            });
+
+            if (response.ok) {
+                setSuccessMessage("Registration successful! Redirecting to login...");
+                setFormData({
+                    username: '',
+                    email: '',
+                    password: '',
+                    confirmPassword: '',
+                });
+
+                setTimeout(() => {
+                    navigate("/login");
+                }, 2000);
+            } else {
+                const errorData = await response.json();
+                alert(errorData.detail || "Failed to register");
+            }
+        } catch (error) {
+            console.error("Error during registration:", error);
+            alert("An error occurred. Please try again.");
+        }
     };
 
     const togglePassword = () => {
@@ -52,6 +91,9 @@ const Register = () => {
                 <div className="text-center mb-4">
                     <h2 className="text-2xl font-bold text-[#2E8B57]">CarbonIQ</h2>
                     <h3 className="text-xl mt-2 text-[#3CB371]">Register</h3>
+                    {successMessage && (
+                        <p className="mt-2 text-green-500 text-sm animate-fade-in">{successMessage}</p>
+                    )}
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-3">
