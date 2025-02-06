@@ -1,11 +1,18 @@
-import React from 'react';
+// src/App.jsx
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import LandingPage from "./Pages/LandingPage";  // Import LandingPage component
 
-function App() {
+
+const App = () => {
   return (
-    <div className="text-center">
-      <h1 className="text-3xl font-bold">Welcome to the Home Page!</h1>
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />  {/* Route to LandingPage */}
+        {/* Add other routes if needed */}
+      </Routes>
+    </Router>
   );
-}
+};
 
 export default App;
