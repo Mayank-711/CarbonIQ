@@ -1,30 +1,61 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom'; // Ensure to install react-router-dom if not already done
-import loginBackImage from '../Assets/images/loginback.jpg'; // Import the image
+import { Link, useNavigate } from 'react-router-dom'; 
+import loginBackImage from '../Assets/images/loginback.jpg';
+import API_BASE_URL from '../config';
+
 
 const LoginPage = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [message, setMessage] = useState(null);
+  const navigate = useNavigate();
 
   const togglePassword = () => setShowPassword(!showPassword);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Handle login logic here
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: 'Login successful!' });
+        
+        // Save JWT token in local storage
+        localStorage.setItem('token', result.access_token);
+
+        // Redirect after login
+        navigate('/dashboard');
+      } else {
+        setMessage({ type: 'error', text: result.error || 'Invalid credentials' });
+      }
+    } catch (error) {
+      setMessage({ type: 'error', text: 'Network error. Please try again.' });
+    }
   };
 
   return (
     <div
       className="flex items-center justify-center min-h-screen bg-fill bg-center"
-      style={{ backgroundImage: `url(${loginBackImage})` }} // Use imported image
+      style={{ backgroundImage: `url(${loginBackImage})` }}
     >
-      {/* Login Form */}
       <div className="bg-[#F0FFF0] p-8 rounded-md shadow-lg w-full max-w-md opacity-90">
         <h2 className="text-center text-3xl font-bold text-[#2E8B57] mb-6">Login to CarbonIQ</h2>
-        
+
+        {message && (
+          <div className={`p-3 mb-4 text-center rounded-md ${message.type === 'success' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
+            {message.text}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
-          {/* Username Field */}
           <div className="mb-4">
             <label htmlFor="username" className="block text-[#2E8B57] text-xl mb-2">Username</label>
             <input
@@ -36,8 +67,7 @@ const LoginPage = () => {
               required
             />
           </div>
-          
-          {/* Password Field */}
+
           <div className="mb-4">
             <label htmlFor="password" className="block text-[#2E8B57] text-xl mb-2">Password</label>
             <div className="relative">
@@ -59,7 +89,6 @@ const LoginPage = () => {
             </div>
           </div>
 
-          {/* Submit Button */}
           <button
             type="submit"
             className="w-full p-3 bg-[#3CB371] text-[#F0FFF0] font-bold text-xl rounded-md hover:bg-[#2E8B57] transition-colors"
@@ -68,15 +97,13 @@ const LoginPage = () => {
           </button>
         </form>
 
-        {/* Sign Up Link */}
         <div className="mt-4 text-center">
           <span className="text-[#3CB371] text-lg">Don't have an account? </span>
           <a href="/signup" className="text-[#3CB371] hover:text-[#2E8B57] text-lg">
             Sign Up
           </a>
         </div>
-        
-        {/* Back to Home Link */}
+
         <div className="mt-4 text-center">
           <Link to="/" className="text-[#3CB371] hover:text-[#2E8B57] text-lg">
             Back to Home

@@ -1,7 +1,8 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from models import db, configure_database, User
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash,check_password_hash
+from flask_jwt_extended import create_access_token, jwt_required, JWTManager
 
 app = Flask(__name__)
 CORS(app)
@@ -12,6 +13,31 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize database and migrations
 configure_database(app)
+
+app.config["JWT_SECRET_KEY"] = "3b5ab708578bda03026bbaa00bfc67aa5d1b48b8a2ded39c302bd85796bedb96"  # Keep this secret in production
+jwt = JWTManager(app)
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            return jsonify({"error": "Username and password are required"}), 400
+
+        user = User.query.filter_by(username=username).first()
+
+        if user and check_password_hash(user.password, password):
+            # Create JWT Token
+            access_token = create_access_token(identity={"username": user.username, "email": user.email})
+            return jsonify({"access_token": access_token, "message": "Login successful"}), 200
+        else:
+            return jsonify({"error": "Invalid username or password"}), 401
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/')
 def home():

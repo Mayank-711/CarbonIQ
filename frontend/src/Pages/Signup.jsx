@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import signupBackImage from '../Assets/images/loginback.jpg';
+import API_BASE_URL from '../config';
 
 const SignupPage = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -26,7 +27,7 @@ const SignupPage = () => {
     };
 
     try {
-      const response = await fetch('http://localhost:5000/api/signup', {
+      const response = await fetch(`${API_BASE_URL}/api/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
