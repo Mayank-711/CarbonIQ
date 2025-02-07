@@ -3,6 +3,7 @@ from flask_cors import CORS
 from models import configure_database, db
 from flask_jwt_extended import JWTManager
 from routes.auth_routes import auth_bp  # Import your auth routes blueprint
+from routes.calcu_co2 import co2_prediction
 
 def create_app():
     app = Flask(__name__)
@@ -19,7 +20,8 @@ def create_app():
 
     # Register Blueprints
     app.register_blueprint(auth_bp)
-
+    app.register_blueprint(co2_prediction)
+    
     return app
 
 
