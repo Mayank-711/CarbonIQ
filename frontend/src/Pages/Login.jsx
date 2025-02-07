@@ -32,7 +32,8 @@ const LoginPage = () => {
         localStorage.setItem('token', result.access_token);
 
         // Redirect after login
-        navigate('/dashboard');
+        console.log('redirecting');
+        navigate('/home');
       } else {
         setMessage({ type: 'error', text: result.error || 'Invalid credentials' });
       }
