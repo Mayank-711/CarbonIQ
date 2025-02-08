@@ -1,5 +1,23 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import API_BASE_URL from "../config";
+
+const decodeToken = (token) => {
+  try {
+    const base64Url = token.split('.')[1]; // Extract payload part
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error("Token decoding failed:", error);
+    return null;
+  }
+};
 
 const Calculator = () => {
   const [source, setSource] = useState("");
@@ -26,7 +44,7 @@ const Calculator = () => {
   const fetchSuggestions = async (input, setSuggestions) => {
     if (input.trim().length > 2) {
       try {
-        const response = await axios.get(`https://api.olamaps.io/places/v1/autocomplete`, {
+        const response = await axios.get("https://api.olamaps.io/places/v1/autocomplete", {
           params: {
             input: input,
             api_key: OLAMAPS_API,
@@ -56,13 +74,18 @@ const Calculator = () => {
     }
 
     try {
-      const response = await axios.post(`https://api.olamaps.io/routing/v1/directions`, null, {
-        params: {
-          origin: `${sourceCoordinates.lat},${sourceCoordinates.lng}`,
-          destination: `${destinationCoordinates.lat},${destinationCoordinates.lng}`,
-          api_key: OLAMAPS_API,
-        },
-      });
+      // Get route details from Ola Maps API
+      const response = await axios.post(
+        "https://api.olamaps.io/routing/v1/directions",
+        null,
+        {
+          params: {
+            origin: `${sourceCoordinates.lat},${sourceCoordinates.lng}`,
+            destination: `${destinationCoordinates.lat},${destinationCoordinates.lng}`,
+            api_key: OLAMAPS_API,
+          },
+        }
+      );
 
       if (response.status === 200) {
         const data = response.data;
@@ -73,7 +96,21 @@ const Calculator = () => {
         setDistance(totalDistance.toFixed(2));
         setTimeTaken(totalDuration.toFixed(2));
 
+        // Extract username from JWT token on the frontend
+        const token = localStorage.getItem("token");
+        if (!token) {
+          setErrorMessage("Authorization token is missing. Please log in again.");
+          return;
+        }
+        const decodedToken = decodeToken(token);
+if (!decodedToken) {
+  setErrorMessage("Failed to decode token. Please log in again.");
+  return;
+}
+console.log("Decoded Token:", decodedToken); // Log the decoded token
+const username = decodedToken.sub?.username;
         const predictionData = {
+          username, // Include username in the payload
           source,
           destination,
           vehicleType,
@@ -84,12 +121,18 @@ const Calculator = () => {
           timeTaken: totalDuration.toFixed(2),
         };
 
-        await axios.post("http://localhost:5000/api/predict_co2", predictionData);
+        console.log("Prediction Data:", predictionData);
+
+        await axios.post(`${API_BASE_URL}/api/predict_co2`, predictionData, {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
 
         setSuccessMessage("Trip logged successfully! The page will refresh in 5 seconds.");
-        
+        setErrorMessage("");
         setTimeout(() => {
-          window.location.reload(); // Refresh the page
+          window.location.reload(); // Refresh the page after 5 seconds
         }, 5000);
       } else {
         setErrorMessage(`Failed to fetch route details: ${response.statusText}`);
@@ -119,62 +162,60 @@ const Calculator = () => {
         }}
       >
         <label className="block mb-4 relative">
-  Source:
-  <input
-    type="text"
-    className="block w-full mt-2 p-2 rounded-md text-green-800"
-    value={source}
-    onChange={(e) => {
-      setSource(e.target.value);
-      fetchSuggestions(e.target.value, setSourceSuggestions);
-    }}
-  />
-  <ul className="absolute w-full bg-white text-green-800 mt-1 rounded-md shadow-lg z-10 max-h-40 overflow-y-auto">
-    {sourceSuggestions.map((suggestion, index) => (
-      <li
-        key={index}
-        className="p-2 hover:bg-green-100 cursor-pointer"
-        onClick={() => {
-          setSource(suggestion.description);
-          setSourceCoordinates(suggestion.coordinates);
-          setSourceSuggestions([]);
-        }}
-      >
-        {suggestion.description}
-      </li>
-    ))}
-  </ul>
-</label>
+          Source:
+          <input
+            type="text"
+            className="block w-full mt-2 p-2 rounded-md text-green-800"
+            value={source}
+            onChange={(e) => {
+              setSource(e.target.value);
+              fetchSuggestions(e.target.value, setSourceSuggestions);
+            }}
+          />
+          <ul className="absolute w-full bg-white text-green-800 mt-1 rounded-md shadow-lg z-10 max-h-40 overflow-y-auto">
+            {sourceSuggestions.map((suggestion, index) => (
+              <li
+                key={index}
+                className="p-2 hover:bg-green-100 cursor-pointer"
+                onClick={() => {
+                  setSource(suggestion.description);
+                  setSourceCoordinates(suggestion.coordinates);
+                  setSourceSuggestions([]);
+                }}
+              >
+                {suggestion.description}
+              </li>
+            ))}
+          </ul>
+        </label>
 
-<label className="block mb-4 relative">
-  Destination:
-  <input
-    type="text"
-    className="block w-full mt-2 p-2 rounded-md text-green-800"
-    value={destination}
-    onChange={(e) => {
-      setDestination(e.target.value);
-      fetchSuggestions(e.target.value, setDestinationSuggestions);
-    }}
-  />
-  <ul className="absolute w-full bg-white text-green-800 mt-1 rounded-md shadow-lg z-10 max-h-40 overflow-y-auto">
-    {destinationSuggestions.map((suggestion, index) => (
-      <li
-        key={index}
-        className="p-2 hover:bg-green-100 cursor-pointer"
-        onClick={() => {
-          setDestination(suggestion.description);
-          setDestinationCoordinates(suggestion.coordinates);
-          setDestinationSuggestions([]);
-        }}
-      >
-        {suggestion.description}
-      </li>
-    ))}
-  </ul>
-</label>
-
-       
+        <label className="block mb-4 relative">
+          Destination:
+          <input
+            type="text"
+            className="block w-full mt-2 p-2 rounded-md text-green-800"
+            value={destination}
+            onChange={(e) => {
+              setDestination(e.target.value);
+              fetchSuggestions(e.target.value, setDestinationSuggestions);
+            }}
+          />
+          <ul className="absolute w-full bg-white text-green-800 mt-1 rounded-md shadow-lg z-10 max-h-40 overflow-y-auto">
+            {destinationSuggestions.map((suggestion, index) => (
+              <li
+                key={index}
+                className="p-2 hover:bg-green-100 cursor-pointer"
+                onClick={() => {
+                  setDestination(suggestion.description);
+                  setDestinationCoordinates(suggestion.coordinates);
+                  setDestinationSuggestions([]);
+                }}
+              >
+                {suggestion.description}
+              </li>
+            ))}
+          </ul>
+        </label>
 
         <div className="flex justify-between mb-4">
           <label className="w-1/2 mr-2">

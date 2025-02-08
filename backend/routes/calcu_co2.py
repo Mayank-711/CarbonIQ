@@ -1,13 +1,17 @@
 from flask import Blueprint, jsonify, request
 from flask_cors import CORS, cross_origin
 import joblib
+import jwt
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-
+from flask_jwt_extended import JWTManager, get_jwt_identity, jwt_required
 
 
 co2_prediction = Blueprint('co2_prediction', __name__)
 CORS(co2_prediction)
+
+
+SECRET_KEY = "3b5ab708578bda03026bbaa00bfc67aa5d1b48b8a2ded39c302bd85796bedb96"
 
 # Load the trained model and scaler
 model = joblib.load('./model/CarbonIQ_rf_model.pkl')
@@ -54,47 +58,76 @@ def predict_co2_emission(mode_of_transport: str, passengers: int, distance: floa
     return float(predicted_co2[0])
 
 
+
 @co2_prediction.route('/api/predict_co2', methods=['POST'])
 @cross_origin()
 def predict_co2():
     try:
-        # Parse JSON request data
         data = request.get_json()
-        mode_of_transport = data.get("vehicleType")
-        passengers = int(data.get("passengerCount", 1))
-        distance = float(data.get("distance"))
-        time = float(data.get("timeTaken"))
+
+        # Validate required fields
+        required_fields = ["vehicleType", "distance", "timeTaken", "date","username"]
+        missing_fields = [field for field in required_fields if data.get(field) in [None, ""]]
+        if missing_fields:
+            return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 422
+
+        # Extract and validate data
+        mode_of_transport = data["vehicleType"]
+        distance = float(data["distance"])
+        time = float(data["timeTaken"])
         is_electric = data.get("isElectric", "no")
+        passengers = int(data.get("passengerCount", 1))
+        trip_date = data["date"]
+        username = data["username"]
 
         # Set passenger count to 0 for public transport
         public_transports = ["bus", "train", "metro", "actrain", "acbus"]
         if mode_of_transport in public_transports:
             passengers = 0
 
-        # Handle "metro" mapping
+        # Handle "metro" mapping (for both "metro" and "train")
         if mode_of_transport in ["metro", "train"]:
             mode_of_transport = "etrain"
 
-        # Apply electric prefix, but exclude metro, actrain, and acbus
-        if is_electric.lower() == "yes" and mode_of_transport not in ["actrain", "acbus","etrain"]:
+        # Apply electric prefix if needed, excluding metro, actrain, and acbus
+        if is_electric.lower() == "yes" and mode_of_transport not in ["actrain", "acbus", "etrain"]:
             mode_of_transport = "e" + mode_of_transport
 
+        # For electric vehicles, adjust passenger count multiplier
+        if mode_of_transport.startswith("e"):
+            passengers = passengers * 1.25
+
+        # Log received input details
+        print(f"Mode of Transport: {mode_of_transport}, Passengers: {passengers}, Distance: {distance}, Time: {time}")
 
         # Call prediction function
-        print(f"Mode of Transport: {mode_of_transport}, Passengers: {passengers}, Distance: {distance}, Time: {time}")
-        
         predicted_co2 = predict_co2_emission(mode_of_transport, passengers, distance, time)
-        
-        # Apply reduction for non-electric vehicles
+
+        # Apply reduction for non-electric vehicles and for car
         if not mode_of_transport.startswith("e"):
             predicted_co2 *= 0.75
+        if mode_of_transport == "car":
+            predicted_co2 *= 0.75
 
-        # Print the predicted CO2 value
-        print("Predicted CO2 Emission:", predicted_co2)
+        # Log all details to the server console
+        print("===== Prediction Details =====")
+        print(f"Username: {username}")
+        print(f"Date: {trip_date}")
+        print(f"Mode of Transport: {mode_of_transport}")
+        print(f"Distance: {distance} km, Time Taken: {time} mins")
+        print(f"Passenger Count: {passengers}")
+        print(f"Is Electric: {is_electric}")
+        print(f"Predicted CO2 Emission: {predicted_co2:.2f} kg")
 
-        # Return the predicted CO2 value in the response
-        return jsonify({"message": "Prediction request processed successfully", "predicted_co2": predicted_co2}), 200
+        # Return success response (without sending predicted CO₂ value back)
+        return jsonify({"message": "Trip Logged Successfully"}), 200
 
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid token"}), 401
+    except ValueError:
+        return jsonify({"error": "Invalid numeric values for distance or time"}), 400
     except Exception as e:
         print("Error during prediction:", str(e))
         return jsonify({"error": str(e)}), 400
