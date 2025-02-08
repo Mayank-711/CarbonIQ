@@ -1,11 +1,13 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, jsonify, request
+from flask_cors import CORS, cross_origin
 import joblib
 import pandas as pd
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-# Create a Blueprint for the route
+
+
 co2_prediction = Blueprint('co2_prediction', __name__)
+CORS(co2_prediction)
 
 # Load the trained model and scaler
 model = joblib.load('./model/CarbonIQ_rf_model.pkl')
@@ -20,48 +22,79 @@ transport_modes = ["acbus", "actrain", "bicycle", "bike", "bus", "car",
 encoder = OneHotEncoder(categories=[transport_modes], sparse_output=False)
 encoder.fit(pd.DataFrame(transport_modes, columns=["mode_of_transport"]))
 
-@co2_prediction.route("/api/calculate_co2", methods=["POST"])
-def index():
-    if request.method == "POST":
-        # Get JSON data from the request
+
+def predict_co2_emission(mode_of_transport: str, passengers: int, distance: float, time: float) -> float:
+    # Map metro to actrain if required
+    
+
+    # Prepare input data
+    input_data = pd.DataFrame({
+        "mode_of_transport": [mode_of_transport],
+        "passengers": [passengers],
+        "distance": [distance],
+        "time": [time]
+    })
+
+    # One-hot encode the transport mode
+    encoded_input = encoder.transform(input_data[['mode_of_transport']])
+    encoded_df = pd.DataFrame(encoded_input, columns=encoder.get_feature_names_out())
+
+    # Scale numeric inputs
+    scaled_input = scaler.transform(input_data[['passengers', 'distance', 'time']])
+    scaled_df = pd.DataFrame(scaled_input, columns=['passengers', 'distance', 'time'])
+
+    # Combine scaled and encoded features, ensuring correct order
+    final_input = pd.concat([scaled_df, encoded_df], axis=1)
+    final_input = final_input.reindex(columns=model.feature_names_in_, fill_value=0)
+
+    # Predict CO2 emissions
+    predicted_co2 = model.predict(final_input)
+
+    # Return the prediction as a float
+    return float(predicted_co2[0])
+
+
+@co2_prediction.route('/api/predict_co2', methods=['POST'])
+@cross_origin()
+def predict_co2():
+    try:
+        # Parse JSON request data
         data = request.get_json()
+        mode_of_transport = data.get("vehicleType")
+        passengers = int(data.get("passengerCount", 1))
+        distance = float(data.get("distance"))
+        time = float(data.get("timeTaken"))
+        is_electric = data.get("isElectric", "no")
 
-        mode_of_transport = data.get("mode_of_transport")
-        passengers = data.get("passengers")
-        distance = data.get("distance")
-        time = data.get("time")
-        # If any required field is missing, return an error
-        if not all([mode_of_transport, passengers, distance, time]):
-            return jsonify({"error": "Missing required fields"}), 400
+        # Set passenger count to 0 for public transport
+        public_transports = ["bus", "train", "metro", "actrain", "acbus"]
+        if mode_of_transport in public_transports:
+            passengers = 0
 
-        # Map metro to actrain
-        if mode_of_transport == "metro":
-            mode_of_transport = "actrain"
+        # Handle "metro" mapping
+        if mode_of_transport in ["metro", "train"]:
+            mode_of_transport = "etrain"
 
-        # Prepare input data
-        input_data = pd.DataFrame({
-            "mode_of_transport": [mode_of_transport],
-            "passengers": [passengers],
-            "distance": [distance],
-            "time": [time]
-        })
+        # Apply electric prefix, but exclude metro, actrain, and acbus
+        if is_electric.lower() == "yes" and mode_of_transport not in ["actrain", "acbus","etrain"]:
+            mode_of_transport = "e" + mode_of_transport
 
-        # One-hot encode the transport mode
-        encoded_input = encoder.transform(input_data[['mode_of_transport']])
-        encoded_df = pd.DataFrame(encoded_input, columns=encoder.get_feature_names_out())
 
-        # Scale numeric inputs
-        scaled_input = scaler.transform(input_data[['passengers', 'distance', 'time']])
-        scaled_df = pd.DataFrame(scaled_input, columns=['passengers', 'distance', 'time'])
+        # Call prediction function
+        print(f"Mode of Transport: {mode_of_transport}, Passengers: {passengers}, Distance: {distance}, Time: {time}")
+        
+        predicted_co2 = predict_co2_emission(mode_of_transport, passengers, distance, time)
+        
+        # Apply reduction for non-electric vehicles
+        if not mode_of_transport.startswith("e"):
+            predicted_co2 *= 0.75
 
-        # Combine scaled and encoded features, ensuring correct order
-        final_input = pd.concat([scaled_df, encoded_df], axis=1)
-        final_input = final_input.reindex(columns=model.feature_names_in_, fill_value=0)
+        # Print the predicted CO2 value
+        print("Predicted CO2 Emission:", predicted_co2)
 
-        # Predict CO2 emissions
-        predicted_co2 = model.predict(final_input)
+        # Return the predicted CO2 value in the response
+        return jsonify({"message": "Prediction request processed successfully", "predicted_co2": predicted_co2}), 200
 
-        # Return the result as JSON
-        return jsonify({"predicted_co2": f"{predicted_co2[0]:.2f} g CO2"})
-
-    return jsonify({"message": "Please provide input data for prediction."})
+    except Exception as e:
+        print("Error during prediction:", str(e))
+        return jsonify({"error": str(e)}), 400

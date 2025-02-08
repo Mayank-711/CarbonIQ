@@ -18,6 +18,8 @@ def create_app():
     JWTManager(app)
     CORS(app)
 
+    CORS(app, resources={r"/api/*": {"origins": "*"}}) 
+    
     # Register Blueprints
     app.register_blueprint(auth_bp)
     app.register_blueprint(co2_prediction)
