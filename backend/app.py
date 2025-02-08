@@ -5,6 +5,8 @@ from flask_jwt_extended import JWTManager
 from routes.auth_routes import auth_bp  # Import your auth routes blueprint
 from routes.calcu_co2 import co2_prediction
 
+
+
 def create_app():
     app = Flask(__name__)
 
@@ -12,6 +14,7 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config["JWT_SECRET_KEY"] = "3b5ab708578bda03026bbaa00bfc67aa5d1b48b8a2ded39c302bd85796bedb96"
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = 3600
 
     # Initialize extensions
     configure_database(app)

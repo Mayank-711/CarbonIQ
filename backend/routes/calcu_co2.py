@@ -5,6 +5,8 @@ import jwt
 import pandas as pd
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from flask_jwt_extended import JWTManager, get_jwt_identity, jwt_required
+from models import Prediction,db
+from datetime import datetime
 
 
 co2_prediction = Blueprint('co2_prediction', __name__)
@@ -66,19 +68,24 @@ def predict_co2():
         data = request.get_json()
 
         # Validate required fields
-        required_fields = ["vehicleType", "distance", "timeTaken", "date","username"]
+        required_fields = ["vehicleType", "distance", "timeTaken", "date", "username", "source", "destination"]
         missing_fields = [field for field in required_fields if data.get(field) in [None, ""]]
         if missing_fields:
             return jsonify({"error": f"Missing required fields: {', '.join(missing_fields)}"}), 422
 
         # Extract and validate data
+        source = data["source"]
+        destination = data["destination"]
         mode_of_transport = data["vehicleType"]
         distance = float(data["distance"])
         time = float(data["timeTaken"])
         is_electric = data.get("isElectric", "no")
         passengers = int(data.get("passengerCount", 1))
-        trip_date = data["date"]
+        trip_date = data["date"]  # This is a string
         username = data["username"]
+
+        # Convert the date string to a datetime object
+        trip_date = datetime.fromisoformat(trip_date.replace("Z", "+00:00"))  # Adjust for UTC if necessary
 
         # Set passenger count to 0 for public transport
         public_transports = ["bus", "train", "metro", "actrain", "acbus"]
@@ -100,7 +107,7 @@ def predict_co2():
         # Log received input details
         print(f"Mode of Transport: {mode_of_transport}, Passengers: {passengers}, Distance: {distance}, Time: {time}")
 
-        # Call prediction function
+        # Call prediction function (you need to define this function)
         predicted_co2 = predict_co2_emission(mode_of_transport, passengers, distance, time)
 
         # Apply reduction for non-electric vehicles and for car
@@ -111,15 +118,34 @@ def predict_co2():
 
         # Log all details to the server console
         print("===== Prediction Details =====")
+        print(f"Source: {source}")
+        print(f"Destination: {destination}")
         print(f"Username: {username}")
         print(f"Date: {trip_date}")
         print(f"Mode of Transport: {mode_of_transport}")
         print(f"Distance: {distance} km, Time Taken: {time} mins")
         print(f"Passenger Count: {passengers}")
-        print(f"Is Electric: {is_electric}")
-        print(f"Predicted CO2 Emission: {predicted_co2:.2f} kg")
+        print(f"Predicted CO2 Emission: {predicted_co2:.2f}g")
 
-        # Return success response (without sending predicted CO₂ value back)
+        # Create a new Prediction object
+        new_prediction = Prediction(
+            username=username,
+            source=source,
+            destination=destination,
+            vehicle_type=mode_of_transport,
+            passenger_count=passengers,
+            is_electric=is_electric,
+            date=trip_date,  # This is now a datetime object
+            distance=distance,
+            time_taken=time,
+            predicted_co2=predicted_co2
+        )
+
+        # Add the new prediction to the session and commit
+        db.session.add(new_prediction)
+        db.session.commit()
+
+        # Return success response
         return jsonify({"message": "Trip Logged Successfully"}), 200
 
     except jwt.ExpiredSignatureError:
@@ -129,5 +155,41 @@ def predict_co2():
     except ValueError:
         return jsonify({"error": "Invalid numeric values for distance or time"}), 400
     except Exception as e:
+        db.session.rollback()  # Rollback the session in case of error
         print("Error during prediction:", str(e))
         return jsonify({"error": str(e)}), 400
+    
+
+
+@co2_prediction.route('/api/daily_data', methods=['GET'])
+@cross_origin()
+def get_daily_data():
+    username = request.args.get('username')
+
+    if not username:
+        return jsonify({"error": "Username is required"}), 400
+
+    # Fetch predictions for the given username
+    predictions = Prediction.query.filter_by(username=username).order_by(Prediction.date.desc()).all()
+
+    # Return an empty array if no predictions are found
+    if not predictions:
+        return jsonify([]), 200
+
+    predictions_data = [
+        {
+            "id": p.id,
+            "username": p.username,
+            "source": p.source,
+            "destination": p.destination,
+            "vehicle_type": p.vehicle_type,
+            "passenger_count": p.passenger_count,
+            "is_electric": p.is_electric,
+            "date": p.date.isoformat(),
+            "distance": p.distance,
+            "time_taken": p.time_taken,
+            "predicted_co2": p.predicted_co2
+        }
+        for p in predictions
+    ]
+    return jsonify(predictions_data), 200

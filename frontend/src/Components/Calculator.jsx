@@ -19,6 +19,7 @@ const decodeToken = (token) => {
   }
 };
 
+
 const Calculator = () => {
   const [source, setSource] = useState("");
   const [destination, setDestination] = useState("");
@@ -107,7 +108,6 @@ if (!decodedToken) {
   setErrorMessage("Failed to decode token. Please log in again.");
   return;
 }
-console.log("Decoded Token:", decodedToken); // Log the decoded token
 const username = decodedToken.sub?.username;
         const predictionData = {
           username, // Include username in the payload
