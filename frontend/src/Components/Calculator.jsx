@@ -36,7 +36,7 @@ const Calculator = () => {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const OLAMAPS_API = "upIsbo0X7RjH2SfHjy2eYpm8TWdynT6vFDCpA85y"; // Replace with your actual API key
+  const OLAMAPS_API = ""; // Replace with your actual API key
 
   useEffect(() => {
     setCurrentDate(new Date().toISOString());
